@@ -225,6 +225,10 @@ The `.do()`, `.return()`, and `.throw()` callbacks receive the narrowed type fro
 - **Zero dependencies** - only uses native `Error`, `Promise`, and `instanceof`
 - **Tiny** - under 1.5 KB, ships ESM + CJS with full TypeScript declarations
 
+## Changelog
+
+See [GitHub Releases](https://github.com/seaw01f/catch-chain/releases).
+
 ## License
 
 [MIT](./LICENSE)
