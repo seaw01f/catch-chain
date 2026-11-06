@@ -1,5 +1,5 @@
 import type { AsyncReasonMapper, ErrorEffect, ReasonMapper } from './catch-chain.types.js'
-import { type CatchHandler, guardedHandler } from './catch-handler.js'
+import { type CatchHandler, handlerOf } from './catch-handler.js'
 import type { ErrorMatcher } from './error-matcher.types.js'
 
 const isReasonMapper = <E, V>(value: V | ReasonMapper<E, V> | AsyncReasonMapper<E, V>): value is ReasonMapper<E, V> | AsyncReasonMapper<E, V> =>
@@ -20,15 +20,17 @@ class CatchChain<E extends Error> {
   }
 
   private sink<V>(produce: (reason: E) => Promise<V>): CatchHandler<V> {
-    const sinkChain = async (reason: unknown): Promise<V> => {
-      // Only ever called once the matcher has accepted the reason, either by the handler itself or by firstErr.
-      const matchedReason = reason as E
-      for (const effect of this.effects) {
-        await effect(matchedReason)
-      }
-      return produce(matchedReason)
-    }
-    return guardedHandler(this.matcher, sinkChain)
+    return handlerOf([{
+      catches: this.matcher,
+      sink: async (reason: unknown): Promise<V> => {
+        // A chain's sink is only called after its catches - this matcher - has accepted the reason.
+        const caughtReason = reason as E
+        for (const effect of this.effects) {
+          await effect(caughtReason)
+        }
+        return produce(caughtReason)
+      },
+    }])
   }
 
   public return<V>(value: V | ReasonMapper<E, V> | AsyncReasonMapper<E, V>): CatchHandler<V> {
