@@ -1,4 +1,4 @@
-import type { AsyncReasonMapper, ErrorEffect, ReasonMapper } from './catch-chain-builder.types.js';
+import type { AsyncReasonMapper, ErrorEffect, ReasonMapper } from './catch-chain-builder.types.js'
 
 /**
  * One built catch chain: a matcher together with the operations it guards.
@@ -30,3 +30,12 @@ export type CatchChain<V> = {
    */
   readonly terminalOperation: ReasonMapper<unknown, V> | AsyncReasonMapper<unknown, V>
 }
+
+/**
+ * A frozen copy of `chain` and of its intermediate operations list.
+ * Shallow: the matcher and operations are the caller's own functions and stay as they are.
+ */
+export const freezeCatchChain = <V>(chain: CatchChain<V>): CatchChain<V> => Object.freeze({
+  ...chain,
+  intermediateOperations: Object.freeze([...chain.intermediateOperations]),
+})

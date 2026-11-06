@@ -1,4 +1,4 @@
-import type { CatchChain } from './catch-chain.js'
+import { type CatchChain, freezeCatchChain } from './catch-chain.js'
 
 const CHAINS: unique symbol = Symbol.for('catch-handler-chains')
 
@@ -37,15 +37,22 @@ export type CatchHandler<V> = {
   readonly [CHAINS]: readonly CatchChain<V>[]
 }
 
-export type CatchHandlerValue<H> = H extends CatchHandler<infer V> ? V : never
+type CatchHandlerValue<H> = H extends CatchHandler<infer V> ? V : never
 
 /**
  * Builds the handler that runs the first of `chains` whose matcher accepts a rejection and re-throws it unchanged when none does.
  * Each chain's matcher is evaluated at most once per call.
  */
 export const catchHandlerOf = <V>(...chains: readonly CatchChain<V>[]): CatchHandler<V> => {
+  // Frozen so a handler shared across modules cannot be changed by one of them:
+  // its chain list, each chain and each chain's intermediate operations.
+  // The handler runs these copies, so nothing that still references the originals (the builder's list of effects, say) can change what it does.
+  const frozenChains: readonly CatchChain<V>[] = Object.freeze(chains.map(freezeCatchChain))
+
   // Destructured so a matcher is called as a plain function and never sees the chain as `this`.
-  const firstCatchingChain = (reason: unknown): CatchChain<V> | undefined => chains.find(({ matcher }) => matcher(reason))
+  // Only `true` matches: a matcher that returns a promise (or anything else) fails closed rather than catching everything.
+  const firstCatchingChain = (reason: unknown): CatchChain<V> | undefined =>
+    frozenChains.find(({ matcher }) => matcher(reason) === true)
 
   const handler = async (reason: unknown): Promise<V> => {
     const chain = firstCatchingChain(reason)
@@ -55,7 +62,7 @@ export const catchHandlerOf = <V>(...chains: readonly CatchChain<V>[]): CatchHan
       throw reason
     }
 
-    // The first chain that can handle the reason/error will execute each intermediate operation and finish it of with the terminal operation.
+    // The first chain that can handle the reason/error runs each intermediate operation and finishes off with the terminal operation.
     const { intermediateOperations, terminalOperation } = chain
     for (const intermediateOperation of intermediateOperations) {
       await intermediateOperation(reason)
@@ -63,14 +70,9 @@ export const catchHandlerOf = <V>(...chains: readonly CatchChain<V>[]): CatchHan
     return terminalOperation(reason)
   }
 
-  // Frozen so a handler shared across modules cannot be changed by one of them:
-  // the handler, its chain list, each chain and each chain's intermediate operations.
   return Object.freeze(Object.assign(handler, {
     catches: (reason: unknown): boolean => firstCatchingChain(reason) !== undefined,
-    [CHAINS]: Object.freeze(chains.map(chain => Object.freeze({
-      ...chain,
-      intermediateOperations: Object.freeze([...chain.intermediateOperations]),
-    }))),
+    [CHAINS]: frozenChains,
   }))
 }
 
