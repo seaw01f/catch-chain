@@ -1,9 +1,9 @@
+import { type CatchHandler, firstErr } from '../catch-handler.js'
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
-import { firstErr, onErr } from '../catch-chain.js'
-import type { CatchHandler } from '../catch-chain.js'
 import type { ErrorEffect } from '../catch-chain.types.js'
 import type { ErrorMatcher } from '../error-matcher.types.js'
 import { faker } from '@faker-js/faker'
+import { onErr } from '../catch-chain.js'
 
 describe('firstErr', () => {
   class NotFoundError extends Error {}

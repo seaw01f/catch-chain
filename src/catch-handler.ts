@@ -1,5 +1,5 @@
-const RUN: unique symbol = Symbol('catch-chain.run')
-const BRANCHES: unique symbol = Symbol('catch-chain.branches')
+const SINK_CHAIN: unique symbol = Symbol('catch-chain.sink-chain')
+const FLAT_CHAINS: unique symbol = Symbol('catch-chain.flat-chains')
 
 /**
  * A rejection handler to pass to `.catch()`, produced by `.return()`, `.throw()` or {@link firstErr}.
@@ -23,23 +23,24 @@ export type CatchHandler<V> = {
   readonly catches: (reason: unknown) => boolean
 
   /**
-   * Runs the effects and produces the outcome without consulting the matcher, so a caller that has already
-   * established `catches(reason)` - {@link firstErr} - does not evaluate it a second time. Only ever called after
-   * `catches` has accepted the reason. Internal: the symbol is not exported, so only this module can call it.
+   * Invokes the chain's intermediate and terminal operations - the effects, then the outcome - without consulting the
+   * matcher, so a caller that has already established `catches(reason)` - {@link firstErr} - does not evaluate it a
+   * second time. Only ever called after `catches` has accepted the reason. Internal: the symbol is not exported, so
+   * only this module can call it.
    */
-  readonly [RUN]: (reason: unknown) => Promise<V>
+  readonly [SINK_CHAIN]: (reason: unknown) => Promise<V>
 
   /**
-   * The single-matcher handlers a {@link firstErr} handler was combined from, flattened through nesting so that each
-   * matcher is evaluated at most once per rejection. Absent on a handler built by `.return()` or `.throw()`.
+   * The flattened list of catch chains a {@link firstErr} handler was combined from, flattened through nesting so that
+   * each matcher is evaluated at most once per rejection. Absent on a handler built by `.return()` or `.throw()`.
    */
-  readonly [BRANCHES]?: readonly CatchHandler<V>[] | undefined
+  readonly [FLAT_CHAINS]?: readonly CatchHandler<V>[] | undefined
 }
 
 export type HandlerValue<H> = H extends CatchHandler<infer V> ? V : never
 
-const newCatchHandler = <V>(handler: (reason: unknown) => Promise<V>, props: Pick<CatchHandler<V>, 'catches' | typeof RUN | typeof BRANCHES>): CatchHandler<V> =>
-  Object.assign(handler, { catches: props.catches, [RUN]: props[RUN], [BRANCHES]: props[BRANCHES] })
+const newCatchHandler = <V>(handler: (reason: unknown) => Promise<V>, props: Pick<CatchHandler<V>, 'catches' | typeof SINK_CHAIN | typeof FLAT_CHAINS>): CatchHandler<V> =>
+  Object.assign(handler, { catches: props.catches, [SINK_CHAIN]: props[SINK_CHAIN], [FLAT_CHAINS]: props[FLAT_CHAINS] })
 
 export const toCatchHandler = <V>(catches: (reason: unknown) => boolean, run: (reason: unknown) => Promise<V>): CatchHandler<V> => {
   const handler = async (reason: unknown): Promise<V> => {
@@ -48,7 +49,7 @@ export const toCatchHandler = <V>(catches: (reason: unknown) => boolean, run: (r
     }
     throw reason
   }
-  return newCatchHandler(handler, { catches, [RUN]: run })
+  return newCatchHandler(handler, { catches, [SINK_CHAIN]: run })
 }
 
 /**
@@ -67,18 +68,18 @@ export const toCatchHandler = <V>(catches: (reason: unknown) => boolean, run: (r
  * ```
  */
 export const firstErr = <H extends readonly [CatchHandler<unknown>, ...CatchHandler<unknown>[]]>(...handlers: H): CatchHandler<HandlerValue<H[number]>> => {
-  // Every handler resolves with its own value type, so each branch resolves with a member of the union.
-  const branches = handlers.flatMap(handler => handler[BRANCHES] ?? [handler]) as readonly CatchHandler<HandlerValue<H[number]>>[]
+  // Every handler resolves with its own value type, so each chain resolves with a member of the union.
+  const flatChains = handlers.flatMap(handler => handler[FLAT_CHAINS] ?? [handler]) as readonly CatchHandler<HandlerValue<H[number]>>[]
 
-  const catches = (reason: unknown): boolean => branches.some(branch => branch.catches(reason))
+  const catches = (reason: unknown): boolean => flatChains.some(chain => chain.catches(reason))
 
   const runFirstCatcher = async (reason: unknown): Promise<HandlerValue<H[number]>> => {
-    const firstCatcher = branches.find(branch => branch.catches(reason))
+    const firstCatcher = flatChains.find(chain => chain.catches(reason))
     if (firstCatcher !== undefined) {
-      return firstCatcher[RUN](reason)
+      return firstCatcher[SINK_CHAIN](reason)
     }
     throw reason
   }
 
-  return newCatchHandler(runFirstCatcher, { catches, [RUN]: runFirstCatcher, [BRANCHES]: branches })
+  return newCatchHandler(runFirstCatcher, { catches, [SINK_CHAIN]: runFirstCatcher, [FLAT_CHAINS]: flatChains })
 }

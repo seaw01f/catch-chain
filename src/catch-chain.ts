@@ -1,6 +1,6 @@
-import type { AsyncReasonMapper, ErrorEffect, ReasonMapper } from './catch-chain.types.js';
-import { type CatchHandler, toCatchHandler } from './catch-handler.js';
-import type { ErrorMatcher } from './error-matcher.types.js';
+import type { AsyncReasonMapper, ErrorEffect, ReasonMapper } from './catch-chain.types.js'
+import { type CatchHandler, toCatchHandler } from './catch-handler.js'
+import type { ErrorMatcher } from './error-matcher.types.js'
 
 const isReasonMapper = <R, V>(value: V | ReasonMapper<R, V> | AsyncReasonMapper<R, V>): value is ReasonMapper<R, V> | AsyncReasonMapper<R, V> =>
   typeof value === 'function'
