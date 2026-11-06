@@ -17,7 +17,7 @@
     "type": "git",
     "url": "git+https://github.com/seaw01f/catch-chain.git"
   },
-  "packageManager": "pnpm@12.15.0",
+  "packageManager": "pnpm@12.17.0",
   "license": "MIT",
   "scripts": {
     "clean": "rm -rf dist coverage",
