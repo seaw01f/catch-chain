@@ -15,7 +15,7 @@ class CatchChain<R> {
   }
 
   public static onError<E extends Error>(matcher: ErrorMatcher<E>): CatchChain<E> {
-    return new CatchChain(async (value: E): Promise<boolean> => matcher(value))
+    return new CatchChain((value: E): Promise<boolean> => Promise.resolve(matcher(value)))
   }
 
   public do(effect: ErrorEffect<R>): CatchChain<R> {
@@ -33,6 +33,7 @@ class CatchChain<R> {
       if (await this.test(reason)) {
         return valueProducer(reason)
       }
+      // eslint-disable-next-line @typescript-eslint/only-throw-error -- an unmatched rejection is re-thrown unchanged, whatever its type
       throw reason
     }
   }
@@ -46,7 +47,9 @@ class CatchChain<R> {
 
   public throw<E>(error?: E | ReasonMapper<R, E> | AsyncReasonMapper<R, E>): AsyncReasonMapper<R, never> {
     const valueProducer: SinkValueProducer<R, never> = async (reason: R): Promise<never> => {
+      // eslint-disable-next-line @typescript-eslint/only-throw-error -- re-throws the original rejection unchanged, whatever its type
       if (error === undefined) throw reason
+      // eslint-disable-next-line @typescript-eslint/only-throw-error -- callers may currently replace the error with a non-Error value
       throw error instanceof Function ? await error(reason) : error
     }
     return this.sink(valueProducer)
