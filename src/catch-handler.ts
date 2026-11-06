@@ -1,6 +1,6 @@
 import type { CatchChain } from './catch-chain.js'
 
-const CHAINS: unique symbol = Symbol.for('catch-chain.chains')
+const CHAINS: unique symbol = Symbol.for('catch-handler-chains')
 
 /**
  * A rejection handler to pass to `.catch()`, produced by `.return()`, `.throw()` or {@link firstErr}.

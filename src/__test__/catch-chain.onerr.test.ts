@@ -319,26 +319,26 @@ describe('onErr', () => {
     it('refuses to replace the chains of a handler', () => {
       const handler = onErr(matcher).return(null)
 
-      expect(() => Object.assign(handler, { [Symbol.for('catch-chain.chains')]: [] })).toThrow(TypeError)
+      expect(() => Object.assign(handler, { [Symbol.for('catch-handler-chains')]: [] })).toThrow(TypeError)
     })
 
     it('refuses to add a chain to a handler', () => {
       const handler = onErr(matcher).return(null)
-      const chains = Reflect.get(handler, Symbol.for('catch-chain.chains')) as unknown[]
+      const chains = Reflect.get(handler, Symbol.for('catch-handler-chains')) as unknown[]
 
       expect(() => chains.push(chains[0])).toThrow(TypeError)
     })
 
     it('refuses to replace the matcher of a chain', () => {
       const handler = onErr(matcher).return(null)
-      const [chain] = Reflect.get(handler, Symbol.for('catch-chain.chains')) as [object]
+      const [chain] = Reflect.get(handler, Symbol.for('catch-handler-chains')) as [object]
 
       expect(() => Object.assign(chain, { matcher: () => true })).toThrow(TypeError)
     })
 
     it('refuses to add an intermediate operation to a chain', () => {
       const handler = onErr(matcher).do(vi.fn()).return(null)
-      const [chain] = Reflect.get(handler, Symbol.for('catch-chain.chains')) as [{ intermediateOperations: unknown[] }]
+      const [chain] = Reflect.get(handler, Symbol.for('catch-handler-chains')) as [{ intermediateOperations: unknown[] }]
 
       expect(() => chain.intermediateOperations.push(vi.fn())).toThrow(TypeError)
     })
