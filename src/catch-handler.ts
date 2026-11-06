@@ -1,5 +1,5 @@
-// Registered rather than unique: the package ships both an ESM and a CJS build, and an application can load both or
-// several installed versions. Every copy must recognise the handlers the others build, so they share this symbol.
+import type { CatchChain } from './catch-chain.js'
+
 const CHAINS: unique symbol = Symbol.for('catch-chain.chains')
 
 /**
@@ -10,9 +10,9 @@ const CHAINS: unique symbol = Symbol.for('catch-chain.chains')
  */
 export type CatchHandler<V> = {
   /**
-   * The call signature `.catch()` invokes. The first chain whose `catches(reason)` holds runs its effects and the
+   * The call signature `.catch()` invokes. The first chain whose matcher accepts `reason` runs its effects and the
    * promise settles with the produced outcome: the recovery value for `.return()`, a rejection for `.throw()`. If no
-   * chain catches the reason, it rejects with `reason` unchanged, so the rejection passes through to the caller. The
+   * chain's matcher accepts the reason, it rejects with `reason` unchanged, so the rejection passes through to the caller. The
    * parameter is `unknown` because a promise can reject with anything - the matcher is what narrows it.
    */
   (reason: unknown): Promise<V>
@@ -31,44 +31,40 @@ export type CatchHandler<V> = {
   readonly [CHAINS]: readonly CatchChain<V>[]
 }
 
-export type HandlerValue<H> = H extends CatchHandler<infer V> ? V : never
+export type CatchHandlerValue<H> = H extends CatchHandler<infer V> ? V : never
 
 /**
- * One closed catch chain: a matcher together with the operations it guards. A single handler has one chain; a
- * {@link firstErr} handler has the chains of every handler it was combined from.
- */
-type CatchChain<V> = {
-  /**
-   * The chain's matcher. Decides whether this chain catches `reason`; runs no effect.
-   */
-  readonly catches: (reason: unknown) => boolean
-
-  /**
-   * Runs the chain's intermediate operations - the effects, in order - then its terminal operation, and settles with
-   * the outcome. Does not consult the matcher: only ever called after `catches` has accepted the reason.
-   */
-  readonly sink: (reason: unknown) => Promise<V>
-}
-
-/**
- * Builds the handler that gives a rejection to the first of `chains` that catches it and re-throws it unchanged when
- * none does. Each chain's matcher is evaluated at most once per call.
+ * Builds the handler that runs the first of `chains` whose matcher accepts a rejection and re-throws it unchanged when none does.
+ * Each chain's matcher is evaluated at most once per call.
  */
 export const catchHandlerOf = <V>(...chains: readonly CatchChain<V>[]): CatchHandler<V> => {
-  const firstCatching = (reason: unknown): CatchChain<V> | undefined => chains.find(chain => chain.catches(reason))
+  // Destructured so a matcher is called as a plain function and never sees the chain as `this`.
+  const firstCatchingChain = (reason: unknown): CatchChain<V> | undefined => chains.find(({ matcher }) => matcher(reason))
 
   const handler = async (reason: unknown): Promise<V> => {
-    const chain = firstCatching(reason)
-    if (chain !== undefined) {
-      return chain.sink(reason)
+    const chain = firstCatchingChain(reason)
+
+    // No chain can handle the reason/error.
+    if (chain === undefined) {
+      throw reason
     }
-    throw reason
+
+    // The first chain that can handle the reason/error will execute each intermediate operation and finish it of with the terminal operation.
+    const { intermediateOperations, terminalOperation } = chain
+    for (const intermediateOperation of intermediateOperations) {
+      await intermediateOperation(reason)
+    }
+    return terminalOperation(reason)
   }
 
-  // Frozen so a handler shared across modules cannot be changed by one of them: the handler, its chain list and each chain.
+  // Frozen so a handler shared across modules cannot be changed by one of them:
+  // the handler, its chain list, each chain and each chain's intermediate operations.
   return Object.freeze(Object.assign(handler, {
-    catches: (reason: unknown): boolean => firstCatching(reason) !== undefined,
-    [CHAINS]: Object.freeze(chains.map(chain => Object.freeze(chain))),
+    catches: (reason: unknown): boolean => firstCatchingChain(reason) !== undefined,
+    [CHAINS]: Object.freeze(chains.map(chain => Object.freeze({
+      ...chain,
+      intermediateOperations: Object.freeze([...chain.intermediateOperations]),
+    }))),
   }))
 }
 
@@ -87,6 +83,6 @@ export const catchHandlerOf = <V>(...chains: readonly CatchChain<V>[]): CatchHan
  * ))
  * ```
  */
-export const firstErr = <H extends readonly [CatchHandler<unknown>, ...CatchHandler<unknown>[]]>(...handlers: H): CatchHandler<HandlerValue<H[number]>> =>
+export const firstErr = <H extends readonly [CatchHandler<unknown>, ...CatchHandler<unknown>[]]>(...handlers: H): CatchHandler<CatchHandlerValue<H[number]>> =>
   // Every handler resolves with its own value type, so each of its chains resolves with a member of the union.
-  catchHandlerOf(...handlers.flatMap(handler => handler[CHAINS]) as readonly CatchChain<HandlerValue<H[number]>>[])
+  catchHandlerOf(...handlers.flatMap(handler => handler[CHAINS]) as readonly CatchChain<CatchHandlerValue<H[number]>>[])

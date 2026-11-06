@@ -265,6 +265,20 @@ describe('onErr', () => {
 
       expect(() => chains.push(chains[0])).toThrow(TypeError)
     })
+
+    it('refuses to replace the matcher of a chain', () => {
+      const handler = onErr(matcher).return(null)
+      const [chain] = Reflect.get(handler, Symbol.for('catch-chain.chains')) as [object]
+
+      expect(() => Object.assign(chain, { matcher: () => true })).toThrow(TypeError)
+    })
+
+    it('refuses to add an intermediate operation to a chain', () => {
+      const handler = onErr(matcher).do(vi.fn()).return(null)
+      const [chain] = Reflect.get(handler, Symbol.for('catch-chain.chains')) as [{ intermediateOperations: unknown[] }]
+
+      expect(() => chain.intermediateOperations.push(vi.fn())).toThrow(TypeError)
+    })
   })
 
   describe('catches', () => {
