@@ -8,7 +8,7 @@ const isReasonMapper = <E, V>(value: V | ReasonMapper<E, V> | AsyncReasonMapper<
 class CatchChain<E extends Error> {
   private constructor(
     private readonly matcher: ErrorMatcher<E>,
-    private readonly effects: readonly ErrorEffect<E>[],
+    private readonly intermediateOperations: readonly ErrorEffect<E>[],
   ) {}
 
   public static onError<M extends Error>(matcher: ErrorMatcher<M>): CatchChain<M> {
@@ -16,21 +16,21 @@ class CatchChain<E extends Error> {
   }
 
   public do(effect: ErrorEffect<E>): CatchChain<E> {
-    return new CatchChain(this.matcher, [...this.effects, effect])
+    return new CatchChain(this.matcher, [...this.intermediateOperations, effect])
   }
 
-  private sink<V>(produce: (reason: E) => Promise<V>): CatchHandler<V> {
-    return handlerOf([{
+  private sink<V>(terminalOperation: (reason: E) => Promise<V>): CatchHandler<V> {
+    return handlerOf({
       catches: this.matcher,
       sink: async (reason: unknown): Promise<V> => {
         // A chain's sink is only called after its catches - this matcher - has accepted the reason.
         const caughtReason = reason as E
-        for (const effect of this.effects) {
-          await effect(caughtReason)
+        for (const intermediateOperation of this.intermediateOperations) {
+          await intermediateOperation(caughtReason)
         }
-        return produce(caughtReason)
+        return terminalOperation(caughtReason)
       },
-    }])
+    })
   }
 
   public return<V>(value: V | ReasonMapper<E, V> | AsyncReasonMapper<E, V>): CatchHandler<V> {

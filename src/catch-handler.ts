@@ -52,7 +52,7 @@ export type HandlerValue<H> = H extends CatchHandler<infer V> ? V : never
  * Builds the handler that gives a rejection to the first of `chains` that catches it and re-throws it unchanged when
  * none does. Each chain's matcher is evaluated at most once per call.
  */
-export const handlerOf = <V>(chains: readonly Chain<V>[]): CatchHandler<V> => {
+export const handlerOf = <V>(...chains: readonly Chain<V>[]): CatchHandler<V> => {
   const firstCatching = (reason: unknown): Chain<V> | undefined => chains.find(chain => chain.catches(reason))
 
   const handler = async (reason: unknown): Promise<V> => {
@@ -86,4 +86,4 @@ export const handlerOf = <V>(chains: readonly Chain<V>[]): CatchHandler<V> => {
  */
 export const firstErr = <H extends readonly [CatchHandler<unknown>, ...CatchHandler<unknown>[]]>(...handlers: H): CatchHandler<HandlerValue<H[number]>> =>
   // Every handler resolves with its own value type, so each of its chains resolves with a member of the union.
-  handlerOf(handlers.flatMap(handler => handler[CHAINS]) as readonly Chain<HandlerValue<H[number]>>[])
+  handlerOf(...handlers.flatMap(handler => handler[CHAINS]) as readonly Chain<HandlerValue<H[number]>>[])
