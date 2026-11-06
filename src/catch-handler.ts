@@ -39,17 +39,17 @@ export type CatchHandler<V> = {
 
 export type HandlerValue<H> = H extends CatchHandler<infer V> ? V : never
 
-const newCatchHandler = <V>(handler: (reason: unknown) => Promise<V>, props: Pick<CatchHandler<V>, 'catches' | typeof SINK_CHAIN | typeof FLAT_CHAINS>): CatchHandler<V> =>
-  Object.assign(handler, { catches: props.catches, [SINK_CHAIN]: props[SINK_CHAIN], [FLAT_CHAINS]: props[FLAT_CHAINS] })
+const asCatchHandler = <V>(handler: (reason: unknown) => Promise<V>, props: Pick<CatchHandler<V>, 'catches' | typeof SINK_CHAIN | typeof FLAT_CHAINS>): CatchHandler<V> =>
+  Object.assign(handler, props)
 
-export const toCatchHandler = <V>(catches: (reason: unknown) => boolean, run: (reason: unknown) => Promise<V>): CatchHandler<V> => {
+export const guardedHandler = <V>(catches: (reason: unknown) => boolean, sinkChain: (reason: unknown) => Promise<V>): CatchHandler<V> => {
   const handler = async (reason: unknown): Promise<V> => {
     if (catches(reason)) {
-      return run(reason)
+      return sinkChain(reason)
     }
     throw reason
   }
-  return newCatchHandler(handler, { catches, [SINK_CHAIN]: run })
+  return asCatchHandler(handler, { catches, [SINK_CHAIN]: sinkChain })
 }
 
 /**
@@ -73,13 +73,13 @@ export const firstErr = <H extends readonly [CatchHandler<unknown>, ...CatchHand
 
   const catches = (reason: unknown): boolean => flatChains.some(chain => chain.catches(reason))
 
-  const runFirstCatcher = async (reason: unknown): Promise<HandlerValue<H[number]>> => {
-    const firstCatcher = flatChains.find(chain => chain.catches(reason))
-    if (firstCatcher !== undefined) {
-      return firstCatcher[SINK_CHAIN](reason)
+  const sinkFirstChain = async (reason: unknown): Promise<HandlerValue<H[number]>> => {
+    const firstChain = flatChains.find(chain => chain.catches(reason))
+    if (firstChain !== undefined) {
+      return firstChain[SINK_CHAIN](reason)
     }
     throw reason
   }
 
-  return newCatchHandler(runFirstCatcher, { catches, [SINK_CHAIN]: runFirstCatcher, [FLAT_CHAINS]: flatChains })
+  return asCatchHandler(sinkFirstChain, { catches, [SINK_CHAIN]: sinkFirstChain, [FLAT_CHAINS]: flatChains })
 }

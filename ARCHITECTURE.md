@@ -7,6 +7,7 @@ How catch-chain is put together: what a chain is, what a handler is, and how `fi
 - **Matcher** (`ErrorMatcher`): a type guard that decides whether a rejection reason applies. It answers yes or no and has no side effects.
 - **Effect** (`ErrorEffect`): a side effect added with `.do()`. It does not change the outcome unless it throws.
 - **Outcome**: what the promise settles with once a reason is caught: a recovery value (`.return()`) or a rejection (`.throw()`).
+- **Mapper** (`ReasonMapper`, `AsyncReasonMapper`): a function passed to `.return()` or `.throw()` instead of a constant. The terminal operation calls it with the caught reason to derive the outcome: the recovery value or the replacement error. It may be sync or async.
 - **Intermediate operation**: an operation that returns another `CatchChain`. Today that is `.do()`.
 - **Terminal operation**: an operation that closes the chain and returns a `CatchHandler`: `.return()` and `.throw()`. Both go through the private `CatchChain.sink`.
 - **`CatchChain`**: the immutable builder `onErr()` returns. It holds one matcher and a list of effects, and it is not callable.
@@ -32,19 +33,19 @@ How catch-chain is put together: what a chain is, what a handler is, and how `fi
                                                             │         │  [SINK_CHAIN] → unguarded│
                                                             │         └──────────────────────────┘
                                                    CatchChain.sink()     callable, pass to .catch()
-                                                   toCatchHandler()
-                                                   newCatchHandler()
+                                                   guardedHandler()
+                                                   asCatchHandler()
 ```
 
 ## B. Call time: what a single handler does with a rejection
 
 ```
-                       handler(reason)   ◀── the call .catch() makes
+                       handler(reason)      ◀── the call .catch() makes
                              │
                              ▼
                   ┌─────────────────────┐
-                  │  catches(reason)?   │   ◀── matcher only, sync, no effects
-                  │   (the guard)       │
+                  │   catches(reason)?  │   ◀── matcher only, sync, no effects
+                  │     (the guard)     │
                   └─────────────────────┘
                      │ yes          │ no
                      ▼              ▼
@@ -52,8 +53,8 @@ How catch-chain is put together: what a chain is, what a handler is, and how `fi
        │ [SINK_CHAIN](reason)  │   (passes through to the caller)
        │ (unguarded)           │
        │                       │
-       │  effect₁(reason)      │   ◀── intermediate operations (.do), in order, awaited
-       │  effect₂(reason)      │
+       │  effect1(reason)      │   ◀── intermediate operations (.do), in order, awaited
+       │  effect2(reason)      │
        │       │               │
        │       ▼               │
        │  produce(reason)      │   ◀── terminal operation (.return / .throw)
