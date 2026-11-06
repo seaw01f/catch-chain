@@ -198,10 +198,12 @@ describe('firstErr', () => {
     const matchers = { isNotFound, isRateLimited, isError }
     const isRateLimitedSpy = vi.spyOn(matchers, 'isRateLimited')
     const isErrorSpy = vi.spyOn(matchers, 'isError')
+
     const handler = firstErr(
       firstErr(onErr(matchers.isNotFound).return(null), onErr(matchers.isRateLimited).return(null)),
       onErr(matchers.isError).return(null),
     )
+
     const rateLimited = (): Promise<never> => Promise.reject(new RateLimitedError(faker.lorem.sentence()))
 
     it('consults the matching nested matcher once', async () => {
@@ -227,16 +229,33 @@ describe('firstErr', () => {
 
   describe('types', () => {
     it('resolves with the union of the original value and every recovery value', () => {
-      const recovered = Promise.resolve(faker.number.int())
-        .catch(firstErr(onErr(isNotFound).return(null), onErr(isRateLimited).return(faker.lorem.word())))
+      const recovered = Promise.resolve(faker.datatype.boolean())
+        .catch(firstErr(
+          onErr(isNotFound).return(faker.number.int()),
+          onErr(isRateLimited).return(faker.lorem.word()),
+          onErr(isError).return(null),
+        ))
 
-      expectTypeOf(recovered).resolves.toEqualTypeOf<number | null | string>()
+      expectTypeOf(recovered).resolves.toEqualTypeOf<boolean | number | string | null>()
+    })
+
+    it('resolves with the union of every recovery value across nested handlers', () => {
+      const handler = firstErr(
+        firstErr(onErr(isNotFound).return(faker.number.int())),
+        onErr(isRateLimited).return(faker.lorem.word()),
+      )
+
+      expectTypeOf(handler).toEqualTypeOf<CatchHandler<number | string>>()
     })
 
     it('adds no recovery value for a handler that throws', () => {
-      const handler = firstErr(onErr(isNotFound).return(null), onErr(isRateLimited).throw())
+      const handler = firstErr(
+        onErr(isNotFound).return(faker.number.int()),
+        onErr(isRateLimited).return(faker.lorem.word()),
+        onErr(isError).throw(),
+      )
 
-      expectTypeOf(handler).toEqualTypeOf<CatchHandler<null>>()
+      expectTypeOf(handler).toEqualTypeOf<CatchHandler<number | string>>()
     })
 
     it('requires at least one handler', () => {
