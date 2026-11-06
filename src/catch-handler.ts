@@ -3,6 +3,37 @@
 const CHAINS: unique symbol = Symbol.for('catch-chain.chains')
 
 /**
+ * A rejection handler to pass to `.catch()`, produced by `.return()`, `.throw()` or {@link firstErr}.
+ *
+ * Calling it with a reason one of its chains catches runs that chain's effects and resolves or rejects with the
+ * produced outcome. Any other reason is re-thrown unchanged.
+ */
+export type CatchHandler<V> = {
+  /**
+  * The call signature `.catch()` invokes. The first chain whose `catches(reason)` holds runs its effects and the
+  * promise settles with the produced outcome: the recovery value for `.return()`, a rejection for `.throw()`. If no
+  * chain catches the reason, it rejects with `reason` unchanged, so the rejection passes through to the caller. The
+  * parameter is `unknown` because a promise can reject with anything - the matcher is what narrows it.
+  */
+  (reason: unknown): Promise<V>
+
+  /**
+  * Whether this handler would catch `reason` when passed to `.catch()`, whether it then recovers or re-throws.
+  * Evaluates the matchers only - no effect runs. If a matcher throws, so does `catches`.
+  */
+  readonly catches: (reason: unknown) => boolean
+
+  /**
+  * The chains this handler chooses between, in order. A nested {@link firstErr} handler contributes its chains here
+  * when the outer one is built, so the outer handler searches one flat list and each matcher is evaluated at most once
+  * per rejection. Internal: the symbol is not exported from the package.
+  */
+  readonly [CHAINS]: readonly Chain<V>[]
+}
+
+export type HandlerValue<H> = H extends CatchHandler<infer V> ? V : never
+
+/**
  * One closed catch chain: a matcher together with the operations it guards. A single handler has one chain; a
  * {@link firstErr} handler has the chains of every handler it was combined from.
  */
@@ -20,41 +51,10 @@ type Chain<V> = {
 }
 
 /**
- * A rejection handler to pass to `.catch()`, produced by `.return()`, `.throw()` or {@link firstErr}.
- *
- * Calling it with a reason one of its chains catches runs that chain's effects and resolves or rejects with the
- * produced outcome. Any other reason is re-thrown unchanged.
- */
-export type CatchHandler<V> = {
-  /**
-   * The call signature `.catch()` invokes. The first chain whose `catches(reason)` holds runs its effects and the
-   * promise settles with the produced outcome: the recovery value for `.return()`, a rejection for `.throw()`. If no
-   * chain catches the reason, it rejects with `reason` unchanged, so the rejection passes through to the caller. The
-   * parameter is `unknown` because a promise can reject with anything - the matcher is what narrows it.
-   */
-  (reason: unknown): Promise<V>
-
-  /**
-   * Whether this handler would catch `reason` when passed to `.catch()`, whether it then recovers or re-throws.
-   * Evaluates the matchers only - no effect runs. If a matcher throws, so does `catches`.
-   */
-  readonly catches: (reason: unknown) => boolean
-
-  /**
-   * The chains this handler chooses between, in order. A nested {@link firstErr} handler contributes its chains here
-   * when the outer one is built, so the outer handler searches one flat list and each matcher is evaluated at most once
-   * per rejection. Internal: the symbol is not exported from the package.
-   */
-  readonly [CHAINS]: readonly Chain<V>[]
-}
-
-export type HandlerValue<H> = H extends CatchHandler<infer V> ? V : never
-
-/**
  * Builds the handler that gives a rejection to the first of `chains` that catches it and re-throws it unchanged when
  * none does. Each chain's matcher is evaluated at most once per call.
  */
-export const handlerOf = <V>(...chains: readonly Chain<V>[]): CatchHandler<V> => {
+export const catchHandlerOf = <V>(...chains: readonly Chain<V>[]): CatchHandler<V> => {
   const firstCatching = (reason: unknown): Chain<V> | undefined => chains.find(chain => chain.catches(reason))
 
   const handler = async (reason: unknown): Promise<V> => {
@@ -89,4 +89,4 @@ export const handlerOf = <V>(...chains: readonly Chain<V>[]): CatchHandler<V> =>
  */
 export const firstErr = <H extends readonly [CatchHandler<unknown>, ...CatchHandler<unknown>[]]>(...handlers: H): CatchHandler<HandlerValue<H[number]>> =>
   // Every handler resolves with its own value type, so each of its chains resolves with a member of the union.
-  handlerOf(...handlers.flatMap(handler => handler[CHAINS]) as readonly Chain<HandlerValue<H[number]>>[])
+  catchHandlerOf(...handlers.flatMap(handler => handler[CHAINS]) as readonly Chain<HandlerValue<H[number]>>[])
