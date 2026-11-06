@@ -31,7 +31,10 @@
     "prepublishOnly": "pnpm build"
   },
   "files": [
-    "dist"
+    "dist",
+    "src",
+    "!src/**/__test__",
+    "!src/**/*.test.ts"
   ],
   "engines": {
     "node": ">=20"

@@ -16,57 +16,131 @@ Publishing a GitHub Release is what publishes the package to npm. The `Release` 
   | `dependencies`  | Dependencies         |
   | anything else   | Other changes        |
 
-  Add a missing label with `gh pr edit <number> --add-label <label>`.
-
 ## Choosing the version
 
 The package follows [semantic versioning](https://semver.org):
 
 - **patch** (`1.1.0` → `1.1.1`) for fixes that change no API.
 - **minor** (`1.1.0` → `1.2.0`) for new API that is backwards compatible.
-- **major** (`1.1.0` → `2.0.0`) for anything that breaks existing callers, including a change to the supported Node.js versions in `engines`.
+- **major** (`1.1.0` → `2.0.0`) for anything that breaks existing callers.
 
 ## Stable release
 
-1. Bump the version on a branch and merge it through a PR:
+Replace `x.y.z` with the new version, for example `2.0.0`.
+
+1. Start from an up-to-date `master` and create a release branch:
 
    ```bash
    git switch master && git pull --ff-only
    git switch -c release-x.y.z
+   ```
+
+2. Pick the next version. This updates `version` in `package.json`, for example from `1.1.0` to `2.0.0` for `major`:
+
+   ```bash
    npm version <patch|minor|major> --no-git-tag-version
+   ```
+
+   Use `--no-git-tag-version`: the PR is squash-merged, so a tag created now would point at a commit that never reaches `master`.
+
+3. Commit the change, push the branch and open the PR:
+
+   ```bash
    git commit -am "x.y.z"
    git push -u origin release-x.y.z
    gh pr create --fill
    ```
 
-   Use `--no-git-tag-version`: the PR is squash-merged, so a tag created now would point at a commit that never reaches `master`.
+4. Merge the PR once CI is green (squash).
 
-2. Once the PR is merged, create the release from `master`. GitHub creates the tag and writes the notes from the merged PRs:
+5. Create a draft release from `master`. GitHub creates the tag and writes the notes from the merged PRs:
 
    ```bash
+   git switch master && git pull --ff-only
    gh release create vx.y.z --target master --generate-notes --draft
    ```
 
-3. Review and edit the draft on GitHub (Releases page), then press **Publish release**. Publishing starts the `Release` workflow.
+6. Edit the draft on GitHub (Releases page). The generated notes only list PR titles, so for a major release put the breaking changes at the top, each with what callers need to change.
 
-   Drop `--draft` in step 2 to publish immediately without reviewing the notes.
+7. Press **Publish release**. This starts the `Release` workflow, which publishes to npm. Publishing is hard to undo: npm only allows unpublishing within 72 hours, and a version number can never be reused.
 
-4. Follow the run with `gh run watch` or on the Actions tab, then confirm the new version with `npm view catch-chain version`.
+8. Confirm with `gh run watch`, then `npm view catch-chain version`, which should print the new version. npm can take a few minutes to show it after the workflow finishes.
+
+### Example: releasing 2.0.0
+
+```bash
+# Start from an up-to-date master
+git switch master && git pull --ff-only
+
+# Create a release branch
+git switch -c release-2.0.0
+
+# Pick the next version: changes package.json from 1.1.0 to 2.0.0
+npm version major --no-git-tag-version
+
+# Commit, push the branch and open the PR
+git commit -am "2.0.0"
+git push -u origin release-2.0.0
+gh pr create --fill
+
+# Merge the PR once CI is green (squash)
+
+# Create a draft release from master
+git switch master && git pull --ff-only
+gh release create v2.0.0 --target master --generate-notes --draft
+
+# Edit the draft on GitHub (Releases page): put the breaking changes at the top,
+# because the generated notes only list PR titles
+
+# Press Publish release: this starts the Release workflow, which publishes to npm.
+# Publishing is hard to undo - npm only allows unpublishing within 72 hours,
+# and the version number can never be reused.
+
+# Confirm the run, then the published version (prints 2.0.0)
+gh run watch
+npm view catch-chain version
+```
 
 ## Prerelease
 
-Prereleases are published under the `next` dist-tag, so `npm install catch-chain` keeps resolving to the latest stable version.
+Prereleases are published under the `next` dist-tag, so `npm install catch-chain` keeps resolving to the latest stable version. Replace `x.y.z-rc.n` with the prerelease version, for example `2.1.0-rc.0`.
 
-1. Bump to a prerelease version in the PR, for example `npm version 1.2.0-rc.0 --no-git-tag-version`, or `npm version prerelease --preid rc --no-git-tag-version` for the next `rc` number.
-2. Create the release with the prerelease flag:
+1. Start from an up-to-date `master` and create a release branch:
 
    ```bash
-   gh release create v1.2.0-rc.0 --target master --generate-notes --prerelease
+   git switch master && git pull --ff-only
+   git switch -c release-x.y.z-rc.n
    ```
 
-3. Users opt in with `npm install catch-chain@next`.
+2. Pick the prerelease version. Name it for the first release candidate, or let npm count up from the current one:
 
-The version and the release's prerelease flag must agree. A version with a `-` suffix must be released with `--prerelease`, and a plain version without it.
+   ```bash
+   npm version x.y.z-rc.0 --no-git-tag-version              # first candidate, for example 2.1.0-rc.0
+   npm version prerelease --preid rc --no-git-tag-version   # next candidate, for example 2.1.0-rc.0 to 2.1.0-rc.1
+   ```
+
+3. Commit the change, push the branch and open the PR:
+
+   ```bash
+   git commit -am "x.y.z-rc.n"
+   git push -u origin release-x.y.z-rc.n
+   gh pr create --fill
+   ```
+
+4. Merge the PR once CI is green (squash).
+
+5. Create a draft prerelease from `master`:
+
+   ```bash
+   git switch master && git pull --ff-only
+   gh release create vx.y.z-rc.n --target master --generate-notes --prerelease --draft
+   ```
+
+   The version and the release's prerelease flag must agree: a version with a `-` suffix must be released with `--prerelease`, and a plain version without it. The workflow refuses a mismatch.
+
+6. Edit the draft on GitHub (Releases page) and press **Publish release**. This starts the `Release` workflow, which publishes to npm under `next`. The version number can never be reused, so the next candidate needs the next `rc` number.
+
+7. Confirm with `gh run watch`, then `npm view catch-chain dist-tags`, which should show the new version under `next`. Users opt in with `npm install catch-chain@next`.
 
 ## What the workflow checks
 
