@@ -226,6 +226,27 @@ describe('onErr', () => {
     })
   })
 
+  describe('immutability', () => {
+    it('refuses to replace the catches of a handler', () => {
+      const handler = onErr(matcher).return(null)
+
+      expect(() => Object.assign(handler, { catches: () => false })).toThrow(TypeError)
+    })
+
+    it('refuses to replace the chains of a handler', () => {
+      const handler = onErr(matcher).return(null)
+
+      expect(() => Object.assign(handler, { [Symbol.for('catch-chain.chains')]: [] })).toThrow(TypeError)
+    })
+
+    it('refuses to add a chain to a handler', () => {
+      const handler = onErr(matcher).return(null)
+      const chains = Reflect.get(handler, Symbol.for('catch-chain.chains')) as unknown[]
+
+      expect(() => chains.push(chains[0])).toThrow(TypeError)
+    })
+  })
+
   describe('catches', () => {
     const effect = vi.fn<ErrorEffect<Error>>()
     const handler = onErr(matcher).do(effect).return(null)

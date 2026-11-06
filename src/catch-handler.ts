@@ -65,10 +65,11 @@ export const handlerOf = <V>(...chains: readonly Chain<V>[]): CatchHandler<V> =>
     throw reason
   }
 
-  return Object.assign(handler, {
+  // Frozen so a handler shared across modules cannot be changed by one of them: the handler, its chain list and each chain.
+  return Object.freeze(Object.assign(handler, {
     catches: (reason: unknown): boolean => firstCatching(reason) !== undefined,
-    [CHAINS]: chains,
-  })
+    [CHAINS]: Object.freeze(chains.map(chain => Object.freeze(chain))),
+  }))
 }
 
 /**
