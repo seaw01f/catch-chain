@@ -1,4 +1,4 @@
-import type { AsyncReasonMapper, ErrorEffect } from './catch-chain-builder.types.js';
+import type { AsyncReasonMapper, ErrorEffect } from './catch-chain-builder.types.js'
 
 export type IntermediateOperations<E> = readonly ErrorEffect<E>[]
 export type TerminalOperation<E, V> = AsyncReasonMapper<E, V>
