@@ -74,7 +74,7 @@ const isNotFound = (reason: unknown): reason is NotFoundError => reason instance
 await fetchUser(id).catch(onErr(isNotFound).return(null))
 ```
 
-A matcher is a [type guard](https://www.typescriptlang.org/docs/handbook/2/narrowing.html#using-type-predicates) - it receives `unknown` and narrows to a specific error type. This gives you full type safety in `.do()` and `.return()`/`.throw()` callbacks.
+A matcher is a [type guard](https://www.typescriptlang.org/docs/handbook/2/narrowing.html#using-type-predicates) - it receives `unknown` and narrows to a specific error type. This gives you full type safety in `.do()` and `.return()`/`.throw()` callbacks. A matcher must return `true` synchronously to match: anything else, a promise included, is treated as no match.
 
 ### Matching any error
 

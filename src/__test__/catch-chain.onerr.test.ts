@@ -299,7 +299,33 @@ describe('onErr', () => {
     expect(thisSeen).toHaveBeenCalledWith(undefined)
   })
 
+  describe('given a matcher that returns a promise', () => {
+    const asyncMatcher = (async () => Promise.resolve(true)) as unknown as ErrorMatcher<Error>
+
+    it('passes the rejection through instead of treating the promise as a match', async () => {
+      const original = new Error('matchError')
+
+      await expect(Promise.reject(original).catch(onErr(asyncMatcher).return(null))).rejects.toBe(original)
+    })
+
+    it('makes catches answer no', () => {
+      expect(onErr(asyncMatcher).return(null).catches(new Error('matchError'))).toBe(false)
+    })
+  })
+
   describe('immutability', () => {
+    it('keeps an effect added to the builder after building out of the built handler', async () => {
+      const builder = onErr(matcher)
+      const handler = builder.return(null)
+      const lateEffect = vi.fn<ErrorEffect<Error>>()
+      const builderEffects = Reflect.get(builder, 'intermediateOperations') as unknown[]
+      builderEffects.push(lateEffect)
+
+      await asyncFn('matchError').catch(handler)
+
+      expect(lateEffect).not.toHaveBeenCalled()
+    })
+
     it('keeps an effect added on one branch of a builder out of another branch', async () => {
       const builder = onErr(matcher)
       const otherBranchEffect = vi.fn<ErrorEffect<Error>>()
