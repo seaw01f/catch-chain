@@ -1,5 +1,5 @@
 import type { AsyncReasonMapper, ErrorEffect, ReasonMapper } from './catch-chain.types.js'
-import { type CatchHandler, handlerOf } from './catch-handler.js'
+import { type CatchHandler, catchHandlerOf } from './catch-handler.js'
 import type { ErrorMatcher } from './error-matcher.types.js'
 
 const isReasonMapper = <E, V>(value: V | ReasonMapper<E, V> | AsyncReasonMapper<E, V>): value is ReasonMapper<E, V> | AsyncReasonMapper<E, V> =>
@@ -21,7 +21,7 @@ class CatchChain<E extends Error> {
 
   private sink<V>(terminalOperation: (reason: E) => Promise<V>): CatchHandler<V> {
     const { matcher } = this
-    return handlerOf({
+    return catchHandlerOf({
       // Called as a plain function so a matcher never sees the internal chain object as `this`.
       catches: (reason: unknown): boolean => matcher(reason),
       sink: async (reason: unknown): Promise<V> => {

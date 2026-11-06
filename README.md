@@ -97,7 +97,7 @@ Non-`Error` rejections (strings, plain objects, etc.) pass through unhandled.
 .catch(onErr(isError)
   .do(err => console.error(err))
   .return(defaults))
-  
+
 // Async effect
 .catch(onErr(isError)
   .do(async err => await alertOncall(err))
