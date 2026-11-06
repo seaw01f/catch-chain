@@ -225,4 +225,44 @@ describe('onErr', () => {
       })
     })
   })
+
+  describe('catches', () => {
+    const effect = vi.fn<ErrorEffect<Error>>()
+    const handler = onErr(matcher).do(effect).return(null)
+
+    it('accepts a reason its matcher accepts', () => {
+      expect(handler.catches(new Error('matchError'))).toBe(true)
+    })
+
+    it('rejects a reason its matcher rejects', () => {
+      expect(handler.catches(new Error('ignoreError'))).toBe(false)
+    })
+
+    it('runs no effect', () => {
+      handler.catches(new Error('matchError'))
+
+      expect(effect).not.toHaveBeenCalled()
+    })
+  })
+
+  it('handles a reason caught as unknown when called directly', async () => {
+    const recovery = faker.string.uuid()
+    const caught: unknown = new Error('matchError')
+
+    await expect(onErr(matcher).return(recovery)(caught)).resolves.toBe(recovery)
+  })
+
+  describe('error identity', () => {
+    it('re-throws the very same unmatched error instance', async () => {
+      const unmatched = new Error('ignoreError')
+
+      await expect(Promise.reject(unmatched).catch(onErr(matcher).return(null))).rejects.toBe(unmatched)
+    })
+
+    it('re-throws the very same matched error instance from a bare throw', async () => {
+      const matched = new Error('matchError')
+
+      await expect(Promise.reject(matched).catch(onErr(matcher).throw())).rejects.toBe(matched)
+    })
+  })
 })

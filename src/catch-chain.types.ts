@@ -1,14 +1,4 @@
 /**
- * @internal Async predicate that tests whether an error matches the chain's accumulated conditions.
- */
-export type TestPredicate<V> = (value: V) => PromiseLike<boolean>
-
-/**
- * @internal Async function that produces the final value for a return or throw sink.
- */
-export type SinkValueProducer<R, V> = (reason: R) => Promise<V>
-
-/**
  * Side effect executed when an error matches.
  * Receives the matched error.
  * May be sync or async.
