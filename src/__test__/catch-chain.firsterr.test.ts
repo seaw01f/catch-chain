@@ -1,9 +1,9 @@
 import { type CatchHandler, firstErr } from '../catch-handler.js'
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
-import type { ErrorEffect } from '../catch-chain.types.js'
+import type { ErrorEffect } from '../catch-chain-builder.types.js'
 import type { ErrorMatcher } from '../error-matcher.types.js'
 import { faker } from '@faker-js/faker'
-import { onErr } from '../catch-chain.js'
+import { onErr } from '../catch-chain-builder.js'
 
 describe('firstErr', () => {
   class NotFoundError extends Error {}
@@ -221,7 +221,7 @@ describe('firstErr', () => {
 
   describe('given a handler built by another copy of the library', async () => {
     vi.resetModules()
-    const otherCopy = await import('../catch-chain.js')
+    const otherCopy = await import('../catch-chain-builder.js')
     const matchers = { isRateLimited }
     const isRateLimitedSpy = vi.spyOn(matchers, 'isRateLimited')
     const recovery = faker.string.uuid()

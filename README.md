@@ -90,7 +90,7 @@ Non-`Error` rejections (strings, plain objects, etc.) pass through unhandled.
 
 ### `.do(effect)`
 
-**[Intermediate operation]** Run a side effect when the error matches. Returns a new chain for further chaining. The effect can be sync or async; effects run in order, each awaited before the next.
+**[Intermediate operation]** Run a side effect when the error matches. Returns a new builder for further chaining. The effect can be sync or async; effects run in order, each awaited before the next.
 
 ```ts
 // Sync effect - log and recover

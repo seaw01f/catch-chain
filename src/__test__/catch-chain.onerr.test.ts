@@ -1,8 +1,8 @@
-import type { AsyncReasonMapper, ErrorEffect, ReasonMapper } from '../catch-chain.types.js'
+import type { AsyncReasonMapper, ErrorEffect, ReasonMapper } from '../catch-chain-builder.types.js'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ErrorMatcher } from '../error-matcher.types.js'
 import { faker } from '@faker-js/faker'
-import { onErr } from '../catch-chain.js'
+import { onErr } from '../catch-chain-builder.js'
 import { runInNewContext } from 'node:vm'
 
 describe('onErr', () => {
@@ -11,7 +11,7 @@ describe('onErr', () => {
   const asyncFn = (reason: 'matchError' | 'ignoreError'): Promise<never> => Promise.reject(new Error(reason))
   const matcher: ErrorMatcher<Error> = (reason: unknown): reason is Error => reason instanceof Error && reason.message === 'matchError'
 
-  describe('return sink', () => {
+  describe('return terminal operation', () => {
     const randomReturnValue = faker.helpers.arrayElement([
       () => undefined,
       () => null,
@@ -79,7 +79,7 @@ describe('onErr', () => {
     })
   })
 
-  describe('throw sink', () => {
+  describe('throw terminal operation', () => {
     describe('no error value', () => {
       it('should throw the original error when error match', async () => {
         await expect(asyncFn('matchError').catch(onErr(matcher).throw())).rejects.toThrow('matchError')
