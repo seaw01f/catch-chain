@@ -46,6 +46,8 @@ class CatchChainBuilder<E extends Error> {
 /**
  * Create a catch chain that activates when `matcher` narrows the rejection reason.
  *
+ * @see firstErr
+ *
  * @example
  * ```ts
  * // Match a specific error type

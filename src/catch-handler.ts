@@ -5,15 +5,18 @@ const CHAINS: unique symbol = Symbol.for('catch-chain.chains')
 /**
  * A rejection handler to pass to `.catch()`, produced by `.return()`, `.throw()` or {@link firstErr}.
  *
- * Calling it with a reason one of its chains catches runs that chain's effects and resolves or rejects with the
- * produced outcome. Any other reason is re-thrown unchanged.
+ * Calling it with a reason one of its chains catches runs that chain's effects and resolves or rejects with the produced outcome.
+ * Any other reason is re-thrown unchanged.
  */
 export type CatchHandler<V> = {
   /**
-   * The call signature `.catch()` invokes. The first chain whose matcher accepts `reason` runs its effects and the
-   * promise settles with the produced outcome: the recovery value for `.return()`, a rejection for `.throw()`. If no
-   * chain's matcher accepts the reason, it rejects with `reason` unchanged, so the rejection passes through to the caller. The
-   * parameter is `unknown` because a promise can reject with anything - the matcher is what narrows it.
+   * The call signature `.catch()` invokes.
+   *
+   * The first chain whose matcher accepts `reason` runs its effects and the promise settles with the produced outcome:
+   * the recovery value for `.return()`, a rejection for `.throw()`.
+   * If no chain's matcher accepts the reason, it rejects with `reason` unchanged, so the rejection passes through to the caller.
+   *
+   * The parameter is `unknown` because a promise can reject with anything - the matcher is what narrows it.
    */
   (reason: unknown): Promise<V>
 
@@ -24,9 +27,12 @@ export type CatchHandler<V> = {
   readonly catches: (reason: unknown) => boolean
 
   /**
-   * The chains this handler chooses between, in order. A nested {@link firstErr} handler contributes its chains here
-   * when the outer one is built, so the outer handler searches one flat list and each matcher is evaluated at most once
-   * per rejection. Internal: the symbol is not exported from the package.
+   * The chains this handler chooses between, in order.
+   *
+   * A nested {@link firstErr} handler contributes its chains here when the outer one is built,
+   * so the outer handler searches one flat list and each matcher is evaluated at most once per rejection.
+   *
+   * INTERNAL: the symbol is not exported from the package.
    */
   readonly [CHAINS]: readonly CatchChain<V>[]
 }
@@ -71,8 +77,8 @@ export const catchHandlerOf = <V>(...chains: readonly CatchChain<V>[]): CatchHan
 /**
  * Combine handlers so that the first one whose matcher accepts the rejection handles it, and no other handler sees it.
  *
- * Chained `.catch()` calls hand a replacement error to the next handler; `firstErr` evaluates every matcher against
- * the original rejection and runs only the first match. A rejection no handler matches is re-thrown unchanged.
+ * `firstErr` evaluates every matcher against the original rejection and runs only the first match (in contrast to chained `.catch()` calls that hand a **replacement error** to the next handler).
+ * A rejection no handler matches is re-thrown unchanged.
  *
  * @example
  * ```ts

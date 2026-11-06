@@ -1,9 +1,11 @@
 /**
- * One built catch chain: a matcher together with the operations it guards. Plain data - {@link catchHandlerOf} runs it.
- * A single handler has one chain; a {@link firstErr} handler has the chains of every handler it was combined from.
+ * One built catch chain: a matcher together with the operations it guards.
+ * Plain data - {@link catchHandlerOf} runs it.
+ * A single handler has one chain.
+ * A {@link firstErr} handler has the chains of every handler it was combined from.
  *
- * The operations take `unknown` because one handler holds chains for different error types. The handler only ever
- * passes them a reason this chain's matcher has accepted.
+ * The operations take `unknown` because one handler holds chains for different error types.
+ * The handler only ever passes them a reason this chain's matcher has accepted.
  */
 export type CatchChain<V> = {
   /**
@@ -17,8 +19,8 @@ export type CatchChain<V> = {
   readonly intermediateOperations: readonly ((reason: unknown) => unknown)[]
 
   /**
-   * Produces the outcome once the intermediate operations have run: resolves with the recovery value for `.return()`,
-   * rejects for `.throw()`.
+   * Produces the outcome once the intermediate operations have run:
+   * resolves with the recovery value for `.return()`, rejects for `.throw()`.
    */
   readonly terminalOperation: (reason: unknown) => Promise<V>
 }
