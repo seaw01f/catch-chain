@@ -72,6 +72,28 @@ describe('firstErr', () => {
     })
   })
 
+  describe('given a matching handler whose effect fails', () => {
+    const effectError = new Error(faker.lorem.sentence())
+    const laterEffect = vi.fn<ErrorEffect<Error>>()
+    const handler = firstErr(
+      onErr(isRateLimited).do((): never => {
+        throw effectError
+      }).return(null),
+      onErr(isError).do(laterEffect).return(null),
+    )
+    const rateLimited = (): Promise<never> => Promise.reject(new RateLimitedError(faker.lorem.sentence()))
+
+    it('rejects with the effect error', async () => {
+      await expect(rateLimited().catch(handler)).rejects.toBe(effectError)
+    })
+
+    it('does not hand the rejection to a later matching handler', async () => {
+      await expect(rateLimited().catch(handler)).rejects.toThrow()
+
+      expect(laterEffect).not.toHaveBeenCalled()
+    })
+  })
+
   describe('given a rejection the first handler does not match', () => {
     const skippedEffect = vi.fn<ErrorEffect<NotFoundError>>()
     const laterRecovery = faker.string.uuid()

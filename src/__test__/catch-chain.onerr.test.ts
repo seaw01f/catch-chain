@@ -1,5 +1,6 @@
 import type { AsyncReasonMapper, ErrorEffect, ReasonMapper } from '../catch-chain-builder.types.js'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
+import type { CatchHandler } from '../catch-handler.js'
 import type { ErrorMatcher } from '../error-matcher.types.js'
 import { faker } from '@faker-js/faker'
 import { onErr } from '../catch-chain-builder.js'
@@ -23,7 +24,6 @@ describe('onErr', () => {
       () => Symbol('unique'),
       () => ['foo', 'bar', 'baz'],
       () => ({ foo: 'bar' }),
-      // () => (x: number) => x + 1, // function is considered to be a return value producer
     ])
 
     describe('constant return value', () => {
@@ -76,6 +76,21 @@ describe('onErr', () => {
 
         await expect(asyncFn('matchError').catch(onErr(matcher).return(failingMapper))).rejects.toThrow('Mapper failed')
       })
+    })
+
+    it('passes the caught reason to the mapper', async () => {
+      const caught = new Error('matchError')
+      const mapper = vi.fn<ReasonMapper<Error, null>>(() => null)
+
+      await Promise.reject(caught).catch(onErr(matcher).return(mapper))
+
+      expect(mapper).toHaveBeenCalledWith(caught)
+    })
+
+    it('recovers with a function itself when a mapper returns it', async () => {
+      const fallback = (): string => faker.string.uuid()
+
+      await expect(asyncFn('matchError').catch(onErr(matcher).return(() => fallback))).resolves.toBe(fallback)
     })
   })
 
@@ -204,6 +219,18 @@ describe('onErr', () => {
         expect(effect1).toHaveBeenCalledBefore(effect2)
       })
 
+      it('lets an async effect settle before the next effect starts', async () => {
+        const settled = vi.fn()
+        const slowEffect: ErrorEffect<Error> = async () => {
+          await new Promise(resolve => setTimeout(resolve, 0))
+          settled()
+        }
+
+        await expect(asyncFn('matchError').catch(onErr(matcher).do(slowEffect).do(effect2).throw(error))).rejects.toThrow()
+
+        expect(settled).toHaveBeenCalledBefore(effect2)
+      })
+
       it('should not execute any chained effects when error miss', async () => {
         await expect(asyncFn('ignoreError').catch(onErr(matcher).do(effect1).do(effect2).throw(error))).rejects.toThrow()
 
@@ -227,6 +254,32 @@ describe('onErr', () => {
     })
   })
 
+  describe('effects and the terminal operation', () => {
+    const mapper = vi.fn<ReasonMapper<Error, null>>(() => null)
+
+    it('lets an async effect settle before the mapper runs', async () => {
+      const settled = vi.fn()
+      const slowEffect: ErrorEffect<Error> = async () => {
+        await new Promise(resolve => setTimeout(resolve, 0))
+        settled()
+      }
+
+      await asyncFn('matchError').catch(onErr(matcher).do(slowEffect).return(mapper))
+
+      expect(settled).toHaveBeenCalledBefore(mapper)
+    })
+
+    it('does not call the mapper when an effect fails', async () => {
+      const failingEffect: ErrorEffect<Error> = (): never => {
+        throw new Error('Effect failed')
+      }
+
+      await expect(asyncFn('matchError').catch(onErr(matcher).do(failingEffect).return(mapper))).rejects.toThrow('Effect failed')
+
+      expect(mapper).not.toHaveBeenCalled()
+    })
+  })
+
   it('calls a function from another realm passed to return as a mapper', async () => {
     const recovery = faker.string.uuid()
     const foreignMapper = runInNewContext('() => recovery', { recovery }) as () => string
@@ -247,6 +300,16 @@ describe('onErr', () => {
   })
 
   describe('immutability', () => {
+    it('keeps an effect added on one branch of a builder out of another branch', async () => {
+      const builder = onErr(matcher)
+      const otherBranchEffect = vi.fn<ErrorEffect<Error>>()
+      builder.do(otherBranchEffect)
+
+      await asyncFn('matchError').catch(builder.do(vi.fn()).return(null))
+
+      expect(otherBranchEffect).not.toHaveBeenCalled()
+    })
+
     it('refuses to replace the catches of a handler', () => {
       const handler = onErr(matcher).return(null)
 
@@ -298,6 +361,16 @@ describe('onErr', () => {
 
       expect(effect).not.toHaveBeenCalled()
     })
+
+    it('throws the error a throwing matcher raises', () => {
+      const matcherError = new Error(faker.lorem.sentence())
+      const matchers = { matcher }
+      vi.spyOn(matchers, 'matcher').mockImplementation(() => {
+        throw matcherError
+      })
+
+      expect(() => onErr(matchers.matcher).return(null).catches(new Error('matchError'))).toThrow(matcherError)
+    })
   })
 
   it('handles a reason caught as unknown when called directly', async () => {
@@ -318,6 +391,38 @@ describe('onErr', () => {
       const matched = new Error('matchError')
 
       await expect(Promise.reject(matched).catch(onErr(matcher).throw())).rejects.toBe(matched)
+    })
+  })
+
+  describe('types', () => {
+    class NotFoundError extends Error {
+      public readonly resourceId = faker.string.uuid()
+    }
+    const isNotFound: ErrorMatcher<NotFoundError> = (reason: unknown): reason is NotFoundError => reason instanceof NotFoundError
+
+    it('narrows the reason an effect receives to the matched error type', () => {
+      onErr(isNotFound).do((reason) => {
+        expectTypeOf(reason).toEqualTypeOf<NotFoundError>()
+      })
+    })
+
+    it('narrows the reason a mapper receives to the matched error type', () => {
+      onErr(isNotFound).return((reason) => {
+        expectTypeOf(reason).toEqualTypeOf<NotFoundError>()
+        return null
+      })
+    })
+
+    it('resolves with the type of a constant recovery value', () => {
+      expectTypeOf(onErr(isNotFound).return(faker.number.int())).toEqualTypeOf<CatchHandler<number>>()
+    })
+
+    it('resolves with the type an async mapper resolves to', () => {
+      expectTypeOf(onErr(isNotFound).return(async reason => Promise.resolve(reason.resourceId))).toEqualTypeOf<CatchHandler<string>>()
+    })
+
+    it('adds no recovery value for a throw', () => {
+      expectTypeOf(onErr(isNotFound).throw()).toEqualTypeOf<CatchHandler<never>>()
     })
   })
 })
