@@ -26,6 +26,8 @@ No more `catch` blocks with nested `if/else` chains. Define what to match, what 
 npm install catch-chain
 ```
 
+Requires Node.js 20 or later. Ships ESM and CommonJS builds with TypeScript declarations.
+
 ## Why
 
 A typical promise `.catch()` quickly turns into this:
@@ -88,7 +90,7 @@ Non-`Error` rejections (strings, plain objects, etc.) pass through unhandled.
 
 ### `.do(effect)`
 
-**[Pipe operation]** Run a side effect when the error matches. Returns the chain for further chaining. The effect can be sync or async.
+**[Intermediate operation]** Run a side effect when the error matches. Returns a new chain for further chaining. The effect can be sync or async; effects run in order, each awaited before the next.
 
 ```ts
 // Sync effect - log and recover
@@ -104,7 +106,7 @@ Non-`Error` rejections (strings, plain objects, etc.) pass through unhandled.
 // Multiple effects, executed in order
 .catch(onErr(isError)
   .do(err => metrics.increment('errors'))
-  .do(logger.error)
+  .do(err => logger.error(err))
   .throw())
 ```
 
@@ -123,7 +125,7 @@ Non-`Error` rejections (strings, plain objects, etc.) pass through unhandled.
 .catch(onErr(isNotFound).return(async err => await fetchFallback(err.resourceId)))
 ```
 
-When `value` is a function, it's called with the matched error and its return value is used.
+When `value` is a function, it's called with the matched error and its return value is used. To recover with a function itself, wrap it: `.return(() => fallbackFn)`.
 
 ### `.throw(error?)`
 
@@ -194,9 +196,19 @@ const retryable = firstErr(onErr(isTimeout).throw(), onErr(isRateLimited).throw(
 if (retryable.catches(err)) scheduleRetry(job)
 ```
 
-### Matchers, intermediate operations (effects) and terminal operations (return/throw) should not throw
+A handler accepts any `unknown` reason, so it also works outside `.catch()` - for example in a `try`/`catch` block:
 
-Matchers (`onErr()`), effects (`.do()`) and value/error producers (`.return()` / `.throw()` callbacks) are expected to not throw or reject.
+```ts
+try {
+  return await fetchUser(id)
+} catch (err) {
+  return await notFoundAsNull(err)
+}
+```
+
+### Matchers, effects and mappers should not throw
+
+Matchers (`onErr()`), effects (`.do()`) and mappers (functions passed to `.return()` / `.throw()`) are expected to not throw or reject.
 **The library does not catch errors from these functions - if one throws, the thrown error replaces the original and propagates to the caller.**
 A matcher that throws also makes `handler.catches(reason)` throw, so keep matchers to checks that cannot fail on unexpected input.
 
@@ -284,8 +296,8 @@ The `.do()`, `.return()`, and `.throw()` callbacks receive the narrowed type fro
 
 - **Match or pass through** - unmatched errors propagate unchanged, and `firstErr` lets exactly one handler handle each error
 - **Type-safe** - matchers are type guards, so `.do()`, `.return()`, and `.throw()` callbacks receive the narrowed error type
-- **Zero dependencies** - only uses native `Error`, `Promise`, and `instanceof`
-- **Tiny** - under 1.5 KB minified and gzipped, ships ESM + CJS with full TypeScript declarations
+- **Zero dependencies** - no runtime dependencies
+- **Tiny** - under 0.5 KB minified and gzipped, ships ESM + CJS with full TypeScript declarations
 
 ## Changelog
 
