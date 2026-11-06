@@ -1,0 +1,4 @@
+allowBuilds:
+  '@swc/core': false
+
+minimumReleaseAge: 10080
