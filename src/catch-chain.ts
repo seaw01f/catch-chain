@@ -1,58 +1,50 @@
-import type {
-  AsyncReasonMapper,
-  ErrorEffect,
-  ReasonMapper,
-  SinkValueProducer,
-  TestPredicate,
-} from './catch-chain.types.js'
+import type { AsyncReasonMapper, ErrorEffect, ReasonMapper } from './catch-chain.types.js'
+import { type CatchHandler, handlerOf } from './catch-handler.js'
 import type { ErrorMatcher } from './error-matcher.types.js'
 
-class CatchChain<R> {
-  private readonly test: TestPredicate<R>
+const isReasonMapper = <E, V>(value: V | ReasonMapper<E, V> | AsyncReasonMapper<E, V>): value is ReasonMapper<E, V> | AsyncReasonMapper<E, V> =>
+  typeof value === 'function'
 
-  private constructor(test: TestPredicate<R>) {
-    this.test = test
+class CatchChain<E extends Error> {
+  private constructor(
+    private readonly matcher: ErrorMatcher<E>,
+    private readonly intermediateOperations: readonly ErrorEffect<E>[],
+  ) {}
+
+  public static onError<M extends Error>(matcher: ErrorMatcher<M>): CatchChain<M> {
+    return new CatchChain(matcher, [])
   }
 
-  public static onError<E extends Error>(matcher: ErrorMatcher<E>): CatchChain<E> {
-    return new CatchChain((value: E): Promise<boolean> => Promise.resolve(matcher(value)))
+  public do(effect: ErrorEffect<E>): CatchChain<E> {
+    return new CatchChain(this.matcher, [...this.intermediateOperations, effect])
   }
 
-  public do(effect: ErrorEffect<R>): CatchChain<R> {
-    return new CatchChain(async (value): Promise<boolean> => {
-      const testResult = await this.test(value)
-      if (testResult) {
-        await effect(value)
-      }
-      return testResult
+  private sink<V>(terminalOperation: (reason: E) => Promise<V>): CatchHandler<V> {
+    const { matcher } = this
+    return handlerOf({
+      // Called as a plain function so a matcher never sees the internal chain object as `this`.
+      catches: (reason: unknown): boolean => matcher(reason),
+      sink: async (reason: unknown): Promise<V> => {
+        // A chain's sink is only called after its catches - this matcher - has accepted the reason.
+        const caughtReason = reason as E
+        for (const intermediateOperation of this.intermediateOperations) {
+          await intermediateOperation(caughtReason)
+        }
+        return terminalOperation(caughtReason)
+      },
     })
   }
 
-  private sink<V>(valueProducer: SinkValueProducer<R, V>): AsyncReasonMapper<R, V> {
-    return async (reason: R): Promise<V> => {
-      if (await this.test(reason)) {
-        return valueProducer(reason)
-      }
-      // eslint-disable-next-line @typescript-eslint/only-throw-error -- an unmatched rejection is re-thrown unchanged, whatever its type
-      throw reason
-    }
+  public return<V>(value: V | ReasonMapper<E, V> | AsyncReasonMapper<E, V>): CatchHandler<V> {
+    return this.sink(async (reason: E): Promise<V> => isReasonMapper(value) ? await value(reason) : value)
   }
 
-  public return<V>(value: V | ReasonMapper<R, V> | AsyncReasonMapper<R, V>): AsyncReasonMapper<R, V> {
-    const valueProducer: SinkValueProducer<R, V> = async (reason: R): Promise<V> => {
-      return value instanceof Function ? await value(reason) : value
-    }
-    return this.sink(valueProducer)
-  }
-
-  public throw<E>(error?: E | ReasonMapper<R, E> | AsyncReasonMapper<R, E>): AsyncReasonMapper<R, never> {
-    const valueProducer: SinkValueProducer<R, never> = async (reason: R): Promise<never> => {
-      // eslint-disable-next-line @typescript-eslint/only-throw-error -- re-throws the original rejection unchanged, whatever its type
+  public throw<T>(error?: T | ReasonMapper<E, T> | AsyncReasonMapper<E, T>): CatchHandler<never> {
+    return this.sink(async (reason: E): Promise<never> => {
       if (error === undefined) throw reason
       // eslint-disable-next-line @typescript-eslint/only-throw-error -- callers may currently replace the error with a non-Error value
-      throw error instanceof Function ? await error(reason) : error
-    }
-    return this.sink(valueProducer)
+      throw isReasonMapper(error) ? await error(reason) : error
+    })
   }
 }
 
