@@ -36,7 +36,7 @@ export type CatchHandler<V> = {
 
   /**
    * Whether this handler would catch `reason` when passed to `.catch()`, whether it then recovers or re-throws.
-   * Evaluates the matchers only - no effect runs.
+   * Evaluates the matchers only - no effect runs. If a matcher throws, so does `catches`.
    */
   readonly catches: (reason: unknown) => boolean
 

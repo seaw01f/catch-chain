@@ -194,10 +194,11 @@ const retryable = firstErr(onErr(isTimeout).throw(), onErr(isRateLimited).throw(
 if (retryable.catches(err)) scheduleRetry(job)
 ```
 
-### Effects and producers should not throw
+### Matchers, intermediate operations (effects) and terminal operations (return/throw) should not throw
 
-Effects (`.do()`) and value/error producers (`.return()` / `.throw()` callbacks) are expected to not throw or reject.
-The library does not catch errors from these functions - if one throws, the thrown error replaces the original and propagates to the caller.
+Matchers (`onErr()`), effects (`.do()`) and value/error producers (`.return()` / `.throw()` callbacks) are expected to not throw or reject.
+**The library does not catch errors from these functions - if one throws, the thrown error replaces the original and propagates to the caller.**
+A matcher that throws also makes `handler.catches(reason)` throw, so keep matchers to checks that cannot fail on unexpected input.
 
 ## Patterns
 
