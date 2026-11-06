@@ -21,8 +21,8 @@
   "license": "MIT",
   "scripts": {
     "clean": "rm -rf dist coverage",
-    "lint": "eslint",
-    "lint:fix": "eslint --fix",
+    "lint": "eslint --max-warnings 0",
+    "lint:fix": "eslint --fix --max-warnings 0",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:dev": "vitest",

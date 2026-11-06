@@ -15,7 +15,7 @@ export type SinkValueProducer<R, V> = (reason: R) => Promise<V>
  *
  * **Should not throw!!! If it does, the thrown error replaces the original!**
  */
-export type ErrorEffect<R> = (value: R) => unknown | PromiseLike<unknown>
+export type ErrorEffect<R> = (value: R) => unknown
 
 /**
  * Sync function that maps a matched error to a recovery value or replacement error.
