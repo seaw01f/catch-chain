@@ -1,6 +1,6 @@
 import type { AsyncReasonMapper, ErrorEffect, ReasonMapper } from './catch-chain-builder.types.js'
 import { type CatchHandler, catchHandlerOf } from './catch-handler.js'
-import type { CatchChain } from './catch-chain.js'
+import type { IntermediateOperations, TerminalOperation } from './catch-chain.js'
 import type { ErrorMatcher } from './error-matcher.types.js'
 
 const isReasonMapper = <E, V>(value: V | ReasonMapper<E, V> | AsyncReasonMapper<E, V>): value is ReasonMapper<E, V> | AsyncReasonMapper<E, V> =>
@@ -20,14 +20,14 @@ class CatchChainBuilder<E extends Error> {
     return new CatchChainBuilder(this.matcher, [...this.intermediateOperations, effect])
   }
 
-  private build<V>(terminalOperation: (reason: E) => Promise<V>): CatchHandler<V> {
-    // Widened from E to unknown so chains for different error types share one list.
-    // The handler only passes the operations a reason this matcher has accepted, so they still receive an E.
-    return catchHandlerOf({
+  private build<V>(terminalOperation: TerminalOperation<E, V>): CatchHandler<V> {
+    return catchHandlerOf<V>({
       matcher: this.matcher,
-      intermediateOperations: this.intermediateOperations,
-      terminalOperation,
-    } as CatchChain<V>)
+      // Widened from E to unknown so chains for different error types share one list.
+      // The handler only passes the operations a reason this matcher has accepted, so they still receive an E.
+      intermediateOperations: this.intermediateOperations as IntermediateOperations<unknown>,
+      terminalOperation: terminalOperation as TerminalOperation<unknown, V>,
+    })
   }
 
   public return<V>(value: V | ReasonMapper<E, V> | AsyncReasonMapper<E, V>): CatchHandler<V> {

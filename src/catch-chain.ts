@@ -1,4 +1,7 @@
-import type { AsyncReasonMapper, ErrorEffect, ReasonMapper } from './catch-chain-builder.types.js'
+import type { AsyncReasonMapper, ErrorEffect } from './catch-chain-builder.types.js';
+
+export type IntermediateOperations<E> = readonly ErrorEffect<E>[]
+export type TerminalOperation<E, V> = AsyncReasonMapper<E, V>
 
 /**
  * One built catch chain: a matcher together with the operations it guards.
@@ -22,13 +25,13 @@ export type CatchChain<V> = {
   /**
    * The effects added with `.do()`, run in order, each awaited before the next.
    */
-  readonly intermediateOperations: readonly ErrorEffect<unknown>[]
+  readonly intermediateOperations: IntermediateOperations<unknown>
 
   /**
    * Produces the outcome once the intermediate operations have run:
    * resolves with the recovery value for `.return()`, rejects for `.throw()`.
    */
-  readonly terminalOperation: ReasonMapper<unknown, V> | AsyncReasonMapper<unknown, V>
+  readonly terminalOperation: TerminalOperation<unknown, V>
 }
 
 /**
