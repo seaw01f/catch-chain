@@ -70,7 +70,7 @@ Replace `x.y.z` with the new version, for example `2.0.0`.
 
 ```bash
 # Start from an up-to-date master
-git switch master && git pull --ff-only
+git checkout master && git pull --ff-only
 
 # Create a release branch
 git switch -c release-2.0.0
