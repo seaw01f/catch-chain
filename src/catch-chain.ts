@@ -71,7 +71,7 @@ class CatchChain<R> {
  * .catch(onErr(isDatabaseError).throw(err => new AppError(`DB failed: ${err.code}`)))
  *
  * // Log and re-throw
- * .catch(onErr(anyError).do(err => logger.error(err)).throw())
+ * .catch(onErr(isError).do(err => logger.error(err)).throw())
  * ```
  */
 export const onErr = <E extends Error>(matcher: ErrorMatcher<E>) => CatchChain.onError(matcher)

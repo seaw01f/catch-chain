@@ -14,7 +14,7 @@ Fluent error matching and recovery for JavaScript promises.
 await fetchUser(id)
   .catch(onErr(isNotFound).return(null))
   .catch(onErr(isRateLimited).do(logWarning).throw())
-  .catch(onAnyErr.throw(err => new AppError(`Unexpected: ${err.message}`)))
+  .catch(onErr(isError).throw(err => new AppError(`Unexpected: ${err.message}`)))
 ```
 
 No more `catch` blocks with nested `if/else` chains. Define what to match, what to do, and how to recover - in a readable, composable chain.
@@ -49,7 +49,7 @@ Every handler mixes matching, side effects, and recovery in one block. As cases 
 await fetchUser(id)
   .catch(onErr(isNotFound).return(null))
   .catch(onErr(isRateLimited).do(logWarning).throw(new RetryableError()))
-  .catch(onAnyErr.do(reportToSentry).throw(err => new AppError(`Unexpected: ${err.message}`)))
+  .catch(onErr(isError).do(reportToSentry).throw(err => new AppError(`Unexpected: ${err.message}`)))
 ```
 
 - Each `.catch()` handles one case.
@@ -64,25 +64,24 @@ Creates a chain that only activates when `matcher` returns `true` for the reject
 ```ts
 import { onErr } from 'catch-chain'
 
-const isNotFound: ErrorMatcher<NotFoundError> = 
-  (reason): reason is NotFoundError => reason instanceof NotFoundError
+const isNotFound = (reason: unknown): reason is NotFoundError => reason instanceof NotFoundError
 
 await fetchUser(id).catch(onErr(isNotFound).return(null))
 ```
 
 A matcher is a [type guard](https://www.typescriptlang.org/docs/handbook/2/narrowing.html#using-type-predicates) - it receives `unknown` and narrows to a specific error type. This gives you full type safety in `.do()` and `.return()`/`.throw()` callbacks.
 
-### `onAnyErr`
+### Matching any error
 
-A pre-built chain that matches any `Error` instance. Shorthand for `onErr(reason => reason instanceof Error)`.
+The examples in this README use an `isError` matcher that matches any `Error` instance. Define it once in your code:
 
 ```ts
-import { onAnyErr } from 'catch-chain'
+const isError = (reason: unknown): reason is Error => reason instanceof Error
 
-await riskyOperation().catch(onAnyErr.return('fallback'))
+await riskyOperation().catch(onErr(isError).return('fallback'))
 ```
 
-Non-`Error` rejections (strings, objects, etc.) pass through unhandled.
+Non-`Error` rejections (strings, plain objects, etc.) pass through unhandled.
 
 ### `.do(effect)`
 
@@ -90,17 +89,17 @@ Non-`Error` rejections (strings, objects, etc.) pass through unhandled.
 
 ```ts
 // Sync effect - log and recover
-.catch(onAnyErr
+.catch(onErr(isError)
   .do(err => console.error(err))
   .return(defaults))
   
 // Async effect
-.catch(onAnyErr
+.catch(onErr(isError)
   .do(async err => await alertOncall(err))
   .throw(new ServiceUnavailableError()))
 
 // Multiple effects, executed in order
-.catch(onAnyErr
+.catch(onErr(isError)
   .do(err => metrics.increment('errors'))
   .do(logger.error)
   .throw())
@@ -161,7 +160,7 @@ Chain multiple `.catch()` calls - each handles one error type. Unmatched errors 
 const user = await fetchUser(id)
   .catch(onErr(isNotFound).return(null))
   .catch(onErr(isTimeout).throw(new RetryableError()))
-  .catch(onAnyErr.throw(new AppError('Unexpected')))
+  .catch(onErr(isError).throw(new AppError('Unexpected')))
 ```
 
 ### Log and re-throw
@@ -170,7 +169,7 @@ Use `.do()` for side effects, then `.throw()` to re-throw (same or different err
 
 ```ts
 await processPayment(order)
-  .catch(onAnyErr
+  .catch(onErr(isError)
     .do(err => logger.error('Payment failed', { orderId: order.id, err }))
     .throw(err => new PaymentError(err.message)))
 ```
@@ -181,7 +180,7 @@ Return a default value when a non-critical operation fails.
 
 ```ts
 const preferences = await loadPreferences(userId)
-  .catch(onAnyErr.return(DEFAULT_PREFERENCES))
+  .catch(onErr(isError).return(DEFAULT_PREFERENCES))
 ```
 
 ### Custom matchers
@@ -189,12 +188,11 @@ const preferences = await loadPreferences(userId)
 A matcher is any function with the signature `(reason: unknown) => reason is E`. Build matchers that check properties, codes, or any condition.
 
 ```ts
-const isConflict: ErrorMatcher<HttpError> =
-  (reason): reason is HttpError =>
-    reason instanceof HttpError && reason.status === 409
+const isConflict = (reason: unknown): reason is HttpError =>
+  reason instanceof HttpError && reason.status === 409
 
 await saveDocument(doc)
-  .catch(onErr(isConflict).return(await mergeAndRetry(doc)))
+  .catch(onErr(isConflict).return(() => mergeAndRetry(doc)))
 ```
 
 ### Effect-only handling
@@ -203,19 +201,19 @@ Use `.do()` with `.throw()` when you want to observe the error without changing 
 
 ```ts
 await backgroundSync()
-  .catch(onAnyErr
+  .catch(onErr(isError)
     .do(err => telemetry.record('sync_failed', err))
     .throw())
 ```
 
 ## Types
 
-All types are inferred automatically. You don't need to import anything beyond `onErr` and `onAnyErr`.
+All types are inferred automatically. You don't need to import anything beyond `onErr`.
 
-A custom matcher is a type guard with this shape:
+A matcher is a type guard with this shape, where `E` must extend `Error`:
 
 ```ts
-type ErrorMatcher<E extends Error> = (reason: unknown) => reason is E
+(reason: unknown) => reason is E
 ```
 
 The `.do()`, `.return()`, and `.throw()` callbacks receive the narrowed type from your matcher - no manual annotations needed.
