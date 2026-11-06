@@ -20,8 +20,10 @@ class CatchChain<E extends Error> {
   }
 
   private sink<V>(terminalOperation: (reason: E) => Promise<V>): CatchHandler<V> {
+    const { matcher } = this
     return handlerOf({
-      catches: this.matcher,
+      // Called as a plain function so a matcher never sees the internal chain object as `this`.
+      catches: (reason: unknown): boolean => matcher(reason),
       sink: async (reason: unknown): Promise<V> => {
         // A chain's sink is only called after its catches - this matcher - has accepted the reason.
         const caughtReason = reason as E

@@ -226,6 +226,18 @@ describe('onErr', () => {
     })
   })
 
+  it('calls the matcher without a this', async () => {
+    const thisSeen = vi.fn<(self: unknown) => void>()
+    const matcherReadingThis = function (this: unknown, reason: unknown): reason is Error {
+      thisSeen(this)
+      return reason instanceof Error
+    }
+
+    await Promise.reject(new Error(faker.lorem.sentence())).catch(onErr(matcherReadingThis).return(null))
+
+    expect(thisSeen).toHaveBeenCalledWith(undefined)
+  })
+
   describe('immutability', () => {
     it('refuses to replace the catches of a handler', () => {
       const handler = onErr(matcher).return(null)
