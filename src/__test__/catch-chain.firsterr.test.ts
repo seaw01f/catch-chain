@@ -219,6 +219,26 @@ describe('firstErr', () => {
     })
   })
 
+  describe('given a handler built by another copy of the library', async () => {
+    vi.resetModules()
+    const otherCopy = await import('../catch-chain.js')
+    const matchers = { isRateLimited }
+    const isRateLimitedSpy = vi.spyOn(matchers, 'isRateLimited')
+    const recovery = faker.string.uuid()
+    const handler = firstErr(otherCopy.onErr(matchers.isRateLimited).return(recovery))
+    const rateLimited = (): Promise<never> => Promise.reject(new RateLimitedError(faker.lorem.sentence()))
+
+    it('recovers through it', async () => {
+      await expect(rateLimited().catch(handler)).resolves.toBe(recovery)
+    })
+
+    it('consults its matcher once', async () => {
+      await rateLimited().catch(handler)
+
+      expect(isRateLimitedSpy).toHaveBeenCalledOnce()
+    })
+  })
+
   it('leaves a combined handler handling only what it handled on its own', async () => {
     const standalone = onErr(isNotFound).return(null)
     firstErr(standalone, onErr(isError).return(faker.string.uuid()))

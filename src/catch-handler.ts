@@ -1,4 +1,6 @@
-const CHAINS: unique symbol = Symbol('catch-chain.chains')
+// Registered rather than unique: the package ships both an ESM and a CJS build, and an application can load both or
+// several installed versions. Every copy must recognise the handlers the others build, so they share this symbol.
+const CHAINS: unique symbol = Symbol.for('catch-chain.chains')
 
 /**
  * One closed catch chain: a matcher together with the operations it guards. A single handler has one chain; a
