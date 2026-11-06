@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ErrorMatcher } from '../error-matcher.types.js'
 import { faker } from '@faker-js/faker'
 import { onErr } from '../catch-chain.js'
+import { runInNewContext } from 'node:vm'
 
 describe('onErr', () => {
   afterEach(() => vi.clearAllMocks())
@@ -224,6 +225,13 @@ describe('onErr', () => {
         await expect(asyncFn('matchError').catch(onErr(matcher).do(effect1).do(failingEffect).throw(error))).rejects.toThrow('Effect failed')
       })
     })
+  })
+
+  it('calls a function from another realm passed to return as a mapper', async () => {
+    const recovery = faker.string.uuid()
+    const foreignMapper = runInNewContext('() => recovery', { recovery }) as () => string
+
+    await expect(asyncFn('matchError').catch(onErr(matcher).return(foreignMapper))).resolves.toBe(recovery)
   })
 
   it('calls the matcher without a this', async () => {
