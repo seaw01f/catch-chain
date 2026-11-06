@@ -1,9 +1,9 @@
 import { type CatchHandler, firstErr } from '../catch-handler.js'
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
-import type { ErrorEffect } from '../catch-chain.types.js'
+import type { ErrorEffect } from '../catch-chain-builder.types.js'
 import type { ErrorMatcher } from '../error-matcher.types.js'
 import { faker } from '@faker-js/faker'
-import { onErr } from '../catch-chain.js'
+import { onErr } from '../catch-chain-builder.js'
 
 describe('firstErr', () => {
   class NotFoundError extends Error {}
@@ -67,6 +67,28 @@ describe('firstErr', () => {
 
     it('does not hand the re-thrown rejection to a later matching handler', async () => {
       await expect(Promise.reject(new RateLimitedError(faker.lorem.sentence())).catch(handler)).rejects.toThrow()
+
+      expect(laterEffect).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('given a matching handler whose effect fails', () => {
+    const effectError = new Error(faker.lorem.sentence())
+    const laterEffect = vi.fn<ErrorEffect<Error>>()
+    const handler = firstErr(
+      onErr(isRateLimited).do((): never => {
+        throw effectError
+      }).return(null),
+      onErr(isError).do(laterEffect).return(null),
+    )
+    const rateLimited = (): Promise<never> => Promise.reject(new RateLimitedError(faker.lorem.sentence()))
+
+    it('rejects with the effect error', async () => {
+      await expect(rateLimited().catch(handler)).rejects.toBe(effectError)
+    })
+
+    it('does not hand the rejection to a later matching handler', async () => {
+      await expect(rateLimited().catch(handler)).rejects.toThrow()
 
       expect(laterEffect).not.toHaveBeenCalled()
     })
@@ -221,7 +243,7 @@ describe('firstErr', () => {
 
   describe('given a handler built by another copy of the library', async () => {
     vi.resetModules()
-    const otherCopy = await import('../catch-chain.js')
+    const otherCopy = await import('../catch-chain-builder.js')
     const matchers = { isRateLimited }
     const isRateLimitedSpy = vi.spyOn(matchers, 'isRateLimited')
     const recovery = faker.string.uuid()
